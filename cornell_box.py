@@ -1,8 +1,108 @@
 import time
+import tkinter as tk
 import numpy as np
 import taichi as ti
 
 ti.init(arch=ti.gpu)
+
+mat_none = 0
+mat_lambertian = 1
+mat_specular = 2
+mat_glass = 3
+mat_light = 4
+
+
+class Mat(tk.Tk):
+    mat_sphere = mat_lambertian
+    mat_box = mat_lambertian
+    mat_top = mat_lambertian
+    mat_bottom = mat_lambertian
+    mat_left = mat_lambertian
+    mat_right = mat_lambertian
+    mat_far = mat_lambertian
+
+    def __init__(self):
+        super().__init__()
+        self.title("Select Materials")
+        self.geometry("1000x200")
+        self.resizable(False, False)
+        self.create_widgets()
+
+    def fill_lb(self, lb: tk.Listbox):
+        lb.insert(0, "None")
+        lb.insert(1, "Lambertian")
+        lb.insert(2, "Specular")
+        lb.insert(3, "Glass")
+        lb.insert(4, "Light")
+
+    def ok(self):
+        Mat.mat_sphere = self.lb1.curselection()[0]
+        Mat.mat_box = self.lb2.curselection()[0]
+        Mat.mat_top = self.lb3.curselection()[0]
+        Mat.mat_bottom = self.lb4.curselection()[0]
+        Mat.mat_left = self.lb5.curselection()[0]
+        Mat.mat_right = self.lb6.curselection()[0]
+        Mat.mat_far = self.lb6.curselection()[0]
+        self.destroy()
+
+    def create_widgets(self):
+        self.fr1 = tk.LabelFrame(self, text="Sphere")
+        self.lb1 = tk.Listbox(self.fr1, exportselection=False)
+        self.fill_lb(self.lb1)
+        self.lb1.select_set(mat_lambertian)
+
+        self.fr2 = tk.LabelFrame(self, text="Box")
+
+        self.lb2 = tk.Listbox(self.fr2, exportselection=False)
+        self.fill_lb(self.lb2)
+        self.lb2.select_set(mat_lambertian)
+
+        self.fr3 = tk.LabelFrame(self, text="Top")
+        self.lb3 = tk.Listbox(self.fr3, exportselection=False)
+        self.fill_lb(self.lb3)
+        self.lb3.select_set(mat_lambertian)
+
+        self.fr4 = tk.LabelFrame(self, text="Bottom")
+        self.lb4 = tk.Listbox(self.fr4, exportselection=False)
+        self.fill_lb(self.lb4)
+        self.lb4.select_set(mat_lambertian)
+
+        self.fr5 = tk.LabelFrame(self, text="Left")
+        self.lb5 = tk.Listbox(self.fr5, exportselection=False)
+        self.fill_lb(self.lb5)
+        self.lb5.select_set(mat_lambertian)
+
+        self.fr6 = tk.LabelFrame(self, text="Right")
+        self.lb6 = tk.Listbox(self.fr6, exportselection=False)
+        self.fill_lb(self.lb6)
+        self.lb6.select_set(mat_lambertian)
+
+        self.fr7 = tk.LabelFrame(self, text="Far")
+        self.lb7 = tk.Listbox(self.fr7, exportselection=False)
+        self.fill_lb(self.lb7)
+        self.lb7.select_set(mat_lambertian)
+
+        self.btn = tk.Button(self, text="OK", command=self.ok)
+
+        self.fr1.pack(fill="both", expand="yes", side="left")
+        self.lb1.pack()
+        self.fr2.pack(fill="both", expand="yes", side="left")
+        self.lb2.pack()
+        self.fr3.pack(fill="both", expand="yes", side="left")
+        self.lb3.pack()
+        self.fr4.pack(fill="both", expand="yes", side="left")
+        self.lb4.pack()
+        self.fr5.pack(fill="both", expand="yes", side="left")
+        self.lb5.pack()
+        self.fr6.pack(fill="both", expand="yes", side="left")
+        self.lb6.pack()
+        self.fr7.pack(fill="both", expand="yes", side="left")
+        self.lb7.pack()
+        self.btn.pack(fill="both", expand="yes", side="bottom")
+
+    def run(self):
+        self.mainloop()
+
 
 res = (800, 800)
 color_buffer = ti.Vector.field(3, dtype=ti.f32, shape=res)
@@ -15,12 +115,6 @@ inf = 1e10
 fov = 0.8
 
 camera_pos = ti.Vector([0.0, 0.6, 3.0])
-
-mat_none = 0
-mat_lambertian = 1
-mat_specular = 2
-mat_glass = 3
-mat_light = 4
 
 light_y_pos = 2.0 - eps
 light_x_min_pos = -0.25
@@ -226,14 +320,14 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = (hit_pos - sp1_center).normalized()
-        c, mat = ti.Vector([1.0, 1.0, 1.0]), mat_glass
+        c, mat = ti.Vector([1.0, 1.0, 1.0]), Mat.mat_sphere
     # left box
     hit, cur_dist, pnorm = intersect_aabb_transformed(BOX_MIN, BOX_MAX, pos,
                                                       ray_dir)
     if hit and 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = ti.Vector([0.8, 0.5, 0.4]), mat_specular
+        c, mat = ti.Vector([0.8, 0.5, 0.4]), Mat.mat_box
 
     # left
     pnorm = ti.Vector([1.0, 0.0, 0.0])
@@ -242,7 +336,7 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = ti.Vector([0.65, 0.05, 0.05]), mat_lambertian
+        c, mat = ti.Vector([0.65, 0.05, 0.05]), Mat.mat_left
     # right
     pnorm = ti.Vector([-1.0, 0.0, 0.0])
     cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([1.1, 0.0, 0.0]),
@@ -250,7 +344,7 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = ti.Vector([0.12, 0.45, 0.15]), mat_lambertian
+        c, mat = ti.Vector([0.12, 0.45, 0.15]), Mat.mat_right
     # bottom
     gray = ti.Vector([0.93, 0.93, 0.93])
     pnorm = ti.Vector([0.0, 1.0, 0.0])
@@ -259,7 +353,7 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = gray, mat_lambertian
+        c, mat = gray, Mat.mat_bottom
     # top
     pnorm = ti.Vector([0.0, -1.0, 0.0])
     cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 2.0, 0.0]),
@@ -267,7 +361,7 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = gray, mat_lambertian
+        c, mat = gray, Mat.mat_top
     # far
     pnorm = ti.Vector([0.0, 0.0, 1.0])
     cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 0.0, 0.0]),
@@ -275,7 +369,7 @@ def intersect_scene(pos, ray_dir):
     if 0 < cur_dist < closest:
         closest = cur_dist
         normal = pnorm
-        c, mat = gray, mat_lambertian
+        c, mat = gray, Mat.mat_far
     # light
     hit_l, cur_dist = intersect_light(pos, ray_dir, closest)
     if hit_l and 0 < cur_dist < closest:
@@ -490,12 +584,17 @@ def tonemap(accumulated: ti.f32):
 
 
 def main():
+    Mat().run()
     gui = ti.GUI('Cornell Box', res, fast_gui=True)
     gui.fps_limit = 300
     last_t = time.time()
     i = 0
     while gui.running:
         render()
+        gui.get_event()
+        if gui.is_pressed(ti.GUI.ESCAPE):
+            break
+
         interval = 10
         if i % interval == 0:
             tonemap(i)
