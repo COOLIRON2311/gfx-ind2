@@ -27,6 +27,7 @@ class Mat(tk.Tk):
         self.geometry("1000x200")
         self.resizable(False, False)
         self.create_widgets()
+        self.protocol("WM_DELETE_WINDOW", self.ok)
 
     def fill_lb(self, lb: tk.Listbox):
         lb.insert(0, "None")
