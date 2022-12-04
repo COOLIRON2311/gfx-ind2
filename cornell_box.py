@@ -105,40 +105,39 @@ class Mat(tk.Tk):
         self.mainloop()
 
 
-res = (800, 800)
-color_buffer = ti.Vector.field(3, dtype=ti.f32, shape=res)
-count_var = ti.field(ti.i32, shape=(1, ))
+res = (800, 800) # resolution
+color_buffer = ti.Vector.field(3, dtype=ti.f32, shape=res) # color buffer
 tonemapped_buffer = ti.Vector.field(3, dtype=ti.f32, shape=res)
 
-max_ray_depth = 10
-eps = 1e-4
-inf = 1e10
-fov = 0.8
+max_ray_depth = 10 # maximum ray depth
+eps = 1e-4 # epsilon
+inf = 1e10 # infinity
+fov = 0.8 # field of view
 
-camera_pos = ti.Vector([0.0, 0.6, 3.0])
+camera_pos = ti.Vector([0.0, 0.6, 3.0]) # camera position
 
-light_y_pos = 2.0 - eps
-light_x_min_pos = -0.25
-light_x_range = 0.5
-light_z_min_pos = 1.0
-light_z_range = 0.12
-light_area = light_x_range * light_z_range
-light_min_pos = ti.Vector([light_x_min_pos, light_y_pos, light_z_min_pos])
-light_max_pos = ti.Vector([
+light_y_pos = 2.0 - eps # light y position
+light_x_min_pos = -0.25 # light x position
+light_x_range = 0.5 # light x range
+light_z_min_pos = 1.0 # light z position
+light_z_range = 0.12 # light z range
+light_area = light_x_range * light_z_range # light area
+light_min_pos = ti.Vector([light_x_min_pos, light_y_pos, light_z_min_pos]) # light min position
+light_max_pos = ti.Vector([ # light max position
     light_x_min_pos + light_x_range, light_y_pos,
     light_z_min_pos + light_z_range
 ])
-light_color = ti.Vector(list(np.array([0.9, 0.85, 0.7])))
-light_normal = ti.Vector([0.0, -1.0, 0.0])
+light_color = ti.Vector(list(np.array([0.9, 0.85, 0.7]))) # light color
+light_normal = ti.Vector([0.0, -1.0, 0.0]) # light normal
 
 # No absorption, integrates over a unit hemisphere
-lambertian_brdf = 1.0 / np.pi
+lambertian_brdf = 1.0 / np.pi # lambertian brdf
 # diamond!
-refr_idx = 2.4
+refr_idx = 2.4 # 2.4 for diamond, 1.5 for water
 
 # right sphere
-sp1_center = ti.Vector([0.4, 0.225, 1.75])
-sp1_radius = 0.22
+sp1_center = ti.Vector([0.4, 0.225, 1.75]) # center of the sphere
+sp1_radius = 0.22 # radius of the sphere
 
 
 def make_box_transform_matrices():
@@ -158,8 +157,8 @@ def make_box_transform_matrices():
 
 
 # left box
-BOX_MIN = ti.Vector([0.0, 0.0, 0.0])
-BOX_MAX = ti.Vector([0.55, 1.1, 0.55])
+BOX_MIN = ti.Vector([0.0, 0.0, 0.0]) # left bottom far corner
+BOX_MAX = ti.Vector([0.55, 1.1, 0.55]) # right top near corner
 BOX_M_INV, BOX_M_INV_T = make_box_transform_matrices()
 
 
@@ -172,15 +171,15 @@ def reflect(d, n):
 @ti.func
 def refract(d, n, ni_over_nt):
     # Assuming |d| and |n| are normalized
-    has_r, rd = 0, d
-    dt = d.dot(n)
-    discr = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt)
-    if discr > 0.0:
-        has_r = 1
-        rd = (ni_over_nt * (d - n * dt) - n * ti.sqrt(discr)).normalized()
-    else:
-        rd *= 0.0
-    return has_r, rd
+    has_r, rd = 0, d # rd is the refracted ray direction
+    dt = d.dot(n) # cos(theta_i)
+    discr = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt) # cos(theta_t)^2
+    if discr > 0.0: # total internal reflection
+        has_r = 1 # has refracted ray
+        rd = (ni_over_nt * (d - n * dt) - n * ti.sqrt(discr)).normalized() # Snell's law
+    else: # no total internal reflection
+        rd *= 0.0 # no refracted ray
+    return has_r, rd # rd is the refracted ray direction
 
 
 @ti.func
@@ -199,187 +198,179 @@ def mat_mul_vec(m, v):
 
 
 @ti.func
-def intersect_sphere(pos, d, center, radius):
-    T = pos - center
-    A = 1.0
-    B = 2.0 * T.dot(d)
-    C = T.dot(T) - radius * radius
-    delta = B * B - 4.0 * A * C
-    dist = inf
-    hit_pos = ti.Vector([0.0, 0.0, 0.0])
+def intersect_sphere(pos, d, center, radius):  # ray-sphere intersection
+    T = pos - center # ray to sphere center
+    A = 1.0 # A coefficient of quadratic equation
+    B = 2.0 * T.dot(d) # B coefficient of quadratic equation
+    C = T.dot(T) - radius * radius # C coefficient of quadratic equation
+    delta = B * B - 4.0 * A * C # discriminant
+    dist = inf # distance to intersection
+    hit_pos = ti.Vector([0.0, 0.0, 0.0]) # position of intersection
 
-    if delta > -1e-4:
-        delta = ti.max(delta, 0)
-        sdelta = ti.sqrt(delta)
-        ratio = 0.5 / A
-        ret1 = ratio * (-B - sdelta)
-        dist = ret1
-        if dist < inf:
+    if delta > -1e-4: # if delta is positive, there are two solutions
+        delta = ti.max(delta, 0) # if delta is negative, set it to zero
+        sdelta = ti.sqrt(delta) # square root of delta
+        ratio = 0.5 / A # use 0.5 to avoid division in quadratic equation
+        ret1 = ratio * (-B - sdelta) # first solution using quadratic formula
+        dist = ret1 # set distance to first solution
+        if dist < inf: # if first solution is valid
             # refinement
-            old_dist = dist
-            new_pos = pos + d * dist
-            T = new_pos - center
-            A = 1.0
-            B = 2.0 * T.dot(d)
-            C = T.dot(T) - radius * radius
-            delta = B * B - 4 * A * C
-            if delta > 0:
-                sdelta = ti.sqrt(delta)
-                ratio = 0.5 / A
-                ret1 = ratio * (-B - sdelta) + old_dist
-                if ret1 > 0:
-                    dist = ret1
-                    hit_pos = new_pos + ratio * (-B - sdelta) * d
-            else:
-                dist = inf
+            old_dist = dist # save first solution
+            new_pos = pos + d * dist # new position
+            T = new_pos - center # new ray to sphere center
+            A = 1.0 # new A coefficient of quadratic equation
+            B = 2.0 * T.dot(d) # new B coefficient of quadratic equation
+            C = T.dot(T) - radius * radius # new C coefficient of quadratic equation
+            delta = B * B - 4 * A * C # new discriminant
+            if delta > 0: # if new discriminant is positive
+                sdelta = ti.sqrt(delta) # new square root of delta
+                ratio = 0.5 / A # new 1 / (2 * A) coefficient of quadratic equation
+                ret1 = ratio * (-B - sdelta) + old_dist # new first solution using quadratic formula
+                if ret1 > 0: # if new first solution is valid
+                    dist = ret1 # set distance to new first solution
+                    hit_pos = new_pos + ratio * (-B - sdelta) * d # set hit position
+            else: # if new discriminant is negative
+                dist = inf # set distance to infinity
 
-    return dist, hit_pos
+    return dist, hit_pos # return distance and hit position
 
 
 @ti.func
 def intersect_plane(pos, d, pt_on_plane, norm):
     dist = inf
-    hit_pos = ti.Vector([0.0, 0.0, 0.0])
+    hit_pos = ti.Vector([0.0, 0.0, 0.0]) # hit position
     denom = d.dot(norm)
-    if abs(denom) > eps:
-        dist = norm.dot(pt_on_plane - pos) / denom
-        hit_pos = pos + d * dist
-    return dist, hit_pos
+    if abs(denom) > eps: # if ray is not parallel to plane
+        dist = norm.dot(pt_on_plane - pos) / denom # distance from ray origin to plane
+        hit_pos = pos + d * dist # hit position
+    return dist, hit_pos # return distance and hit position
 
 
 @ti.func
-def intersect_aabb(box_min, box_max, o, d):
+def intersect_aabb(box_min, box_max, o, d): # AABB = axis-aligned bounding box, o = origin, d = direction
     intersect = 1
 
-    near_t = -inf
-    far_t = inf
-    near_face = 0
-    near_is_max = 0
+    near_t = -inf # t value of the near intersection
+    far_t = inf # t value of the far intersection
+    near_face = 0 # face of the near intersection
+    near_is_max = 0 # whether the near intersection is a max face
 
-    for i in ti.static(range(3)):
-        if d[i] == 0:
-            if o[i] < box_min[i] or o[i] > box_max[i]:
-                intersect = 0
-        else:
-            i1 = (box_min[i] - o[i]) / d[i]
-            i2 = (box_max[i] - o[i]) / d[i]
+    for i in ti.static(range(3)): # for each axis
+        if d[i] == 0: # ray parallel to the slab
+            if o[i] < box_min[i] or o[i] > box_max[i]: # ray outside the slab
+                intersect = 0 # no intersection
+        else: # ray not parallel to the slab
+            i1 = (box_min[i] - o[i]) / d[i] # t value of the near intersection
+            i2 = (box_max[i] - o[i]) / d[i] # t value of the far intersection
 
-            new_far_t = ti.max(i1, i2)
-            new_near_t = ti.min(i1, i2)
-            new_near_is_max = i2 < i1
+            new_far_t = ti.max(i1, i2) # new far intersection is the farthest of the two
+            new_near_t = ti.min(i1, i2) # new near intersection is the nearest of the two
+            new_near_is_max = i2 < i1 # new near intersection is a max face if i2 < i1
 
-            far_t = ti.min(new_far_t, far_t)
-            if new_near_t > near_t:
-                near_t = new_near_t
-                near_face = int(i)
-                near_is_max = new_near_is_max
+            far_t = ti.min(new_far_t, far_t) # far intersection is the nearest of the two
+            if new_near_t > near_t: # near intersection is the farthest of the two
+                near_t = new_near_t # update near intersection
+                near_face = int(i) # update near face
+                near_is_max = new_near_is_max # update near_is_max
 
-    near_norm = ti.Vector([0.0, 0.0, 0.0])
-    if near_t > far_t:
-        intersect = 0
-    if intersect:
-        for i in ti.static(range(2)):
-            if near_face == i:
-                near_norm[i] = -1 + near_is_max * 2
-    return intersect, near_t, far_t, near_norm
+    near_norm = ti.Vector([0.0, 0.0, 0.0]) # normal of the near intersection
+    if near_t > far_t: # if the near intersection is behind the far intersection
+        intersect = 0 # no intersection
+    if intersect: # if there is an intersection
+        for i in ti.static(range(2)): # for each axis except the near face
+            if near_face == i: # if the near intersection is on the i-th face
+                near_norm[i] = -1 + near_is_max * 2 # set the normal of the near intersection
+    return intersect, near_t, far_t, near_norm # return the intersection, the near intersection, the far intersection, and the normal of the near intersection
 
 
 @ti.func
-def intersect_aabb_transformed(box_min, box_max, o, d):
+def intersect_aabb_transformed(box_min, box_max, o, d): # o, d are in world space
     # Transform the ray to the box's local space
-    obj_o = mat_mul_point(BOX_M_INV, o)
-    obj_d = mat_mul_vec(BOX_M_INV, d)
-    intersect, near_t, _, near_norm = intersect_aabb(box_min, box_max, obj_o,
-                                                     obj_d)
+    obj_o = mat_mul_point(BOX_M_INV, o) # o, d are in object space
+    obj_d = mat_mul_vec(BOX_M_INV, d) # o, d are in object space
+    intersect, near_t, _, near_norm = intersect_aabb(box_min, box_max, obj_o, obj_d)
     if intersect and 0 < near_t:
         # Transform the normal in the box's local space to world space
-        near_norm = mat_mul_vec(BOX_M_INV_T, near_norm)
-    else:
+        near_norm = mat_mul_vec(BOX_M_INV_T, near_norm) # near_norm is in world space
+    else: # no intersection
         intersect = 0
-    return intersect, near_t, near_norm
+    return intersect, near_t, near_norm # near_t is in world space, near_norm is in world space
 
 
 @ti.func
-def intersect_light(pos, d, tmax):
-    hit, t, far_t, near_norm = intersect_aabb(light_min_pos, light_max_pos,
-                                              pos, d)
-    if hit and 0 < t < tmax:
-        hit = 1
-    else:
-        hit = 0
-        t = inf
-    return hit, t
+def intersect_light(pos, d, tmax): # tmax is the max distance to the light
+    hit, t, far_t, near_norm = intersect_aabb(light_min_pos, light_max_pos,  pos, d) # intersect with the light box
+    if hit and 0 < t < tmax: # if hit and the distance is smaller than tmax
+        hit = 1 # hit the light
+    else: # otherwise
+        hit = 0 # miss the light
+        t = inf # set the distance to inf
+    return hit, t # return the hit status and the distance
 
 
 @ti.func
 def intersect_scene(pos, ray_dir):
     closest, normal = inf, ti.Vector.zero(ti.f32, 3)
-    c, mat = ti.Vector.zero(ti.f32, 3), mat_none
+    c, mat = ti.Vector.zero(ti.f32, 3), mat_none  # color, material
 
     # right near sphere
-    cur_dist, hit_pos = intersect_sphere(pos, ray_dir, sp1_center, sp1_radius)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = (hit_pos - sp1_center).normalized()
-        c, mat = ti.Vector([1.0, 1.0, 1.0]), Mat.mat_sphere
+    cur_dist, hit_pos = intersect_sphere(pos, ray_dir, sp1_center, sp1_radius)  # intersect ray with sphere
+    if 0 < cur_dist < closest:  # light hit the sphere
+        closest = cur_dist  # update the closest distance
+        normal = (hit_pos - sp1_center).normalized()  # update the normal
+        c, mat = ti.Vector([1.0, 1.0, 1.0]), Mat.mat_sphere  # update the color and material
     # left box
-    hit, cur_dist, pnorm = intersect_aabb_transformed(BOX_MIN, BOX_MAX, pos,
-                                                      ray_dir)
-    if hit and 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = ti.Vector([0.8, 0.5, 0.4]), Mat.mat_box
+    hit, cur_dist, pnorm = intersect_aabb_transformed(BOX_MIN, BOX_MAX, pos, ray_dir)  # intersect ray with box
+    if hit and 0 < cur_dist < closest:  # light hit the box
+        closest = cur_dist  # update the closest distance
+        normal = pnorm  # update the normal
+        c, mat = ti.Vector([0.8, 0.5, 0.4]), Mat.mat_box  # update the color and material
 
     # left
-    pnorm = ti.Vector([1.0, 0.0, 0.0])
-    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([-1.1, 0.0, 0.0]),
-                                  pnorm)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = ti.Vector([0.65, 0.05, 0.05]), Mat.mat_left
+    pnorm = ti.Vector([1.0, 0.0, 0.0])  # normal of the plane
+    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([-1.1, 0.0, 0.0]), pnorm)  # intersect ray with plane (left)
+    if 0 < cur_dist < closest: # light hit the plane
+        closest = cur_dist # update the closest distance
+        normal = pnorm # update the normal
+        c, mat = ti.Vector([0.65, 0.05, 0.05]), Mat.mat_left # update the color and material
     # right
     pnorm = ti.Vector([-1.0, 0.0, 0.0])
-    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([1.1, 0.0, 0.0]),
-                                  pnorm)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = ti.Vector([0.12, 0.45, 0.15]), Mat.mat_right
+    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([1.1, 0.0, 0.0]), pnorm) # intersect ray with plane (right)
+    if 0 < cur_dist < closest: # light hit the plane
+        closest = cur_dist # update the closest distance
+        normal = pnorm # update the normal
+        c, mat = ti.Vector([0.12, 0.45, 0.15]), Mat.mat_right # update the color and material
     # bottom
-    gray = ti.Vector([0.93, 0.93, 0.93])
-    pnorm = ti.Vector([0.0, 1.0, 0.0])
-    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 0.0, 0.0]),
-                                  pnorm)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = gray, Mat.mat_bottom
+    gray = ti.Vector([0.93, 0.93, 0.93]) # gray color
+    pnorm = ti.Vector([0.0, 1.0, 0.0]) # normal of the plane
+    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 0.0, 0.0]), pnorm) # intersect ray with plane (bottom)
+    if 0 < cur_dist < closest: # light hit the plane
+        closest = cur_dist # update the closest distance
+        normal = pnorm # update the normal
+        c, mat = gray, Mat.mat_bottom # update the color and material
     # top
-    pnorm = ti.Vector([0.0, -1.0, 0.0])
-    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 2.0, 0.0]),
-                                  pnorm)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = gray, Mat.mat_top
+    pnorm = ti.Vector([0.0, -1.0, 0.0]) # normal of the plane
+    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 2.0, 0.0]), pnorm) # intersect ray with plane (top)
+    if 0 < cur_dist < closest: # light hit the plane
+        closest = cur_dist # update the closest distance
+        normal = pnorm # update the normal
+        c, mat = gray, Mat.mat_top # update the color and material
     # far
     pnorm = ti.Vector([0.0, 0.0, 1.0])
-    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 0.0, 0.0]),
-                                  pnorm)
-    if 0 < cur_dist < closest:
-        closest = cur_dist
-        normal = pnorm
-        c, mat = gray, Mat.mat_far
+    cur_dist, _ = intersect_plane(pos, ray_dir, ti.Vector([0.0, 0.0, 0.0]), pnorm) # intersect ray with plane (far)
+    if 0 < cur_dist < closest: # light hit the plane
+        closest = cur_dist # update the closest distance
+        normal = pnorm # update the normal
+        c, mat = gray, Mat.mat_far # update the color and material
     # light
-    hit_l, cur_dist = intersect_light(pos, ray_dir, closest)
-    if hit_l and 0 < cur_dist < closest:
+    hit_l, cur_dist = intersect_light(pos, ray_dir, closest) # intersect ray with light
+    if hit_l and 0 < cur_dist < closest: # light hit the light
         # technically speaking, no need to check the second term
-        closest = cur_dist
-        normal = light_normal
-        c, mat = light_color, mat_light
+        closest = cur_dist # update the closest distance
+        normal = light_normal # update the normal
+        c, mat = light_color, mat_light # update the color and material
 
-    return closest, normal, c, mat
+    return closest, normal, c, mat # return the closest distance, normal, color and material
 
 
 @ti.func
@@ -397,29 +388,29 @@ def dot_or_zero(n, l):
 
 
 @ti.func
-def mis_power_heuristic(pf, pg):
+def mis_power_heuristic(pf, pg):  # power heuristic for MIS weight calculation
     # Assume 1 sample for each distribution
-    f = pf**2
-    g = pg**2
-    return f / (f + g)
+    f = pf**2  # pdf of sample from f
+    g = pg**2  # pdf of sample from g
+    return f / (f + g)  # probability of choosing f
 
 
 @ti.func
 def compute_area_light_pdf(pos, ray_dir):
-    hit_l, t = intersect_light(pos, ray_dir, inf)
+    hit_l, t = intersect_light(pos, ray_dir, inf)  # inf is ok here
     pdf = 0.0
-    if hit_l:
+    if hit_l:  # hit light
         l_cos = light_normal.dot(-ray_dir)
-        if l_cos > eps:
-            tmp = ray_dir * t
-            dist_sqr = tmp.dot(tmp)
+        if l_cos > eps:  # light is visible
+            tmp = ray_dir * t  # hit_pos
+            dist_sqr = tmp.dot(tmp)  # distance to light
             pdf = dist_sqr / (light_area * l_cos)
     return pdf
 
 
 @ti.func
-def compute_brdf_pdf(normal, sample_dir):
-    return dot_or_zero(normal, sample_dir) / np.pi
+def compute_brdf_pdf(normal, sample_dir):  # cosine weighted
+    return dot_or_zero(normal, sample_dir) / np.pi  # pdf
 
 
 @ti.func
@@ -436,9 +427,9 @@ def sample_brdf(normal):
     # cosine hemisphere sampling
     # Uniformly sample on a disk using concentric sampling(r, theta)
     # https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations#CosineSampleHemisphere
-    r, theta = 0.0, 0.0
-    sx = ti.random() * 2.0 - 1.0
-    sy = ti.random() * 2.0 - 1.0
+    r, theta = 0.0, 0.0  # r is radius, theta is angle
+    sx = ti.random() * 2.0 - 1.0  # sx is sample x
+    sy = ti.random() * 2.0 - 1.0  # sy is sample y
     if sx != 0 or sy != 0:
         if abs(sx) > abs(sy):
             r = sx
@@ -447,45 +438,46 @@ def sample_brdf(normal):
             r = sy
             theta = np.pi / 4 * (2 - sx / sy)
     # Apply Malley's method to project disk to hemisphere
-    u = ti.Vector([1.0, 0.0, 0.0])
-    if abs(normal[1]) < 1 - eps:
-        u = normal.cross(ti.Vector([0.0, 1.0, 0.0]))
-    v = normal.cross(u)
-    costt, sintt = ti.cos(theta), ti.sin(theta)
-    xy = (u * costt + v * sintt) * r
-    zlen = ti.sqrt(ti.max(0.0, 1.0 - xy.dot(xy)))
-    return xy + zlen * normal
+    u = ti.Vector([1.0, 0.0, 0.0])  # u is tangent vector
+    if abs(normal[1]) < 1 - eps:  # if normal is not close to y axis
+        u = normal.cross(ti.Vector([0.0, 1.0, 0.0]))  # u is tangent vector
+    v = normal.cross(u)  # v is bitangent vector
+    costt, sintt = ti.cos(theta), ti.sin(theta)  # costt is cos(theta), sintt is sin(theta)
+    xy = (u * costt + v * sintt) * r  # xy is sample on disk
+    zlen = ti.sqrt(ti.max(0.0, 1.0 - xy.dot(xy)))  # zlen is length of z axis
+    return xy + zlen * normal  # return sample on hemisphere
 
 
 @ti.func
 def sample_direct_light(hit_pos, hit_normal, hit_color):
-    direct_li = ti.Vector([0.0, 0.0, 0.0])
-    fl = lambertian_brdf * hit_color * light_color
-    light_pdf, brdf_pdf = 0.0, 0.0
+    # sample light source and compute direct light
+    direct_li = ti.Vector([0.0, 0.0, 0.0])  # direct light intensity (radiance) at hit_pos (not normalized)
+    fl = lambertian_brdf * hit_color * light_color  # f_l is the BRDF of the light source (light color is the emission)
+    light_pdf, brdf_pdf = 0.0, 0.0  # pdf of light source and brdf
 
     # sample area light
-    to_light_dir = sample_area_light(hit_pos, hit_normal)
-    if to_light_dir.dot(hit_normal) > 0:
-        light_pdf = compute_area_light_pdf(hit_pos, to_light_dir)
+    to_light_dir = sample_area_light(hit_pos, hit_normal)  # sample a direction to the light source
+    if to_light_dir.dot(hit_normal) > 0:  # if the direction is not behind the surface
+        light_pdf = compute_area_light_pdf(hit_pos, to_light_dir)  # compute the pdf of the sampled direction
         brdf_pdf = compute_brdf_pdf(hit_normal, to_light_dir)
-        if light_pdf > 0 and brdf_pdf > 0:
-            l_visible = visible_to_light(hit_pos, to_light_dir)
-            if l_visible:
-                w = mis_power_heuristic(light_pdf, brdf_pdf)
-                nl = dot_or_zero(to_light_dir, hit_normal)
-                direct_li += fl * w * nl / light_pdf
+        if light_pdf > 0 and brdf_pdf > 0:  # if the pdf is not zero (the direction is not parallel to the surface)
+            l_visible = visible_to_light(hit_pos, to_light_dir)  # check if the sampled direction is visible to the light source
+            if l_visible:  # if the direction is visible to the light source
+                w = mis_power_heuristic(light_pdf, brdf_pdf)  # compute the weight of the light source
+                nl = dot_or_zero(to_light_dir, hit_normal)  # compute the cosine between the direction and the surface normal
+                direct_li += fl * w * nl / light_pdf  # compute the direct light intensity (radiance) at hit_pos
 
     # sample brdf
-    brdf_dir = sample_brdf(hit_normal)
-    brdf_pdf = compute_brdf_pdf(hit_normal, brdf_dir)
-    if brdf_pdf > 0:
-        light_pdf = compute_area_light_pdf(hit_pos, brdf_dir)
-        if light_pdf > 0:
-            l_visible = visible_to_light(hit_pos, brdf_dir)
-            if l_visible:
-                w = mis_power_heuristic(brdf_pdf, light_pdf)
-                nl = dot_or_zero(brdf_dir, hit_normal)
-                direct_li += fl * w * nl / brdf_pdf
+    brdf_dir = sample_brdf(hit_normal)  # sample a direction from the brdf
+    brdf_pdf = compute_brdf_pdf(hit_normal, brdf_dir)  # compute the pdf of the sampled direction
+    if brdf_pdf > 0:  # if the pdf is not zero (the direction is not parallel to the surface)
+        light_pdf = compute_area_light_pdf(hit_pos, brdf_dir)  # compute the pdf of the sampled direction
+        if light_pdf > 0:  # if the light source is not parallel to the surface
+            l_visible = visible_to_light(hit_pos, brdf_dir)  # check if the sampled direction is visible to the light source
+            if l_visible:  # if the direction is visible to the light source
+                w = mis_power_heuristic(brdf_pdf, light_pdf)  # compute the weight of the brdf
+                nl = dot_or_zero(brdf_dir, hit_normal)  # compute the cosine between the direction and the surface normal
+                direct_li += fl * w * nl / brdf_pdf  # compute the direct light intensity (radiance) at hit_pos
 
     return direct_li
 
@@ -498,90 +490,87 @@ def schlick(cos, eta):
 
 
 @ti.func
-def sample_ray_dir(indir, normal, hit_pos, mat):
-    u = ti.Vector([0.0, 0.0, 0.0])
-    pdf = 1.0
-    if mat == mat_lambertian:
-        u = sample_brdf(normal)
-        pdf = ti.max(eps, compute_brdf_pdf(normal, u))
-    elif mat == mat_specular:
-        u = reflect(indir, normal)
-    elif mat == mat_glass:
-        cos = indir.dot(normal)
-        ni_over_nt = refr_idx
-        outn = normal
-        if cos > 0.0:
-            outn = -normal
-            cos = refr_idx * cos
-        else:
-            ni_over_nt = 1.0 / refr_idx
-            cos = -cos
-        has_refr, refr_dir = refract(indir, outn, ni_over_nt)
-        refl_prob = 1.0
-        if has_refr:
-            refl_prob = schlick(cos, refr_idx)
-        if ti.random() < refl_prob:
-            u = reflect(indir, normal)
-        else:
-            u = refr_dir
-    return u.normalized(), pdf
+def sample_ray_dir(indir, normal, hit_pos, mat):  # mat is material, not matrix
+    u = ti.Vector([0.0, 0.0, 0.0]) # u is tangent vector
+    pdf = 1.0 # pdf of the sampled direction
+    if mat == mat_lambertian: # lambertian material
+        u = sample_brdf(normal) # sample a direction from the brdf
+        pdf = ti.max(eps, compute_brdf_pdf(normal, u)) # compute the pdf of the sampled direction
+    elif mat == mat_specular: # specular material
+        u = reflect(indir, normal) # reflect the incident direction
+    elif mat == mat_glass: # glass material
+        cos = indir.dot(normal) # cos is the cosine between the incident direction and the surface normal
+        ni_over_nt = refr_idx # ni_over_nt is the ratio of the refractive indices
+        outn = normal # outn is the surface normal
+        if cos > 0.0: # if the incident direction is not behind the surface
+            outn = -normal # outn is the surface normal
+            cos = refr_idx * cos # cos is the cosine between the incident direction and the surface normal
+        else: # if the incident direction is behind the surface
+            ni_over_nt = 1.0 / refr_idx # ni_over_nt is the ratio of the refractive indices
+            cos = -cos # cos is the cosine between the incident direction and the surface normal
+        has_refr, refr_dir = refract(indir, outn, ni_over_nt) # refract the incident direction
+        refl_prob = 1.0 # refl_prob is the probability of reflection (refraction if has_refr is true)
+        if has_refr: # if the incident direction can be refracted
+            refl_prob = schlick(cos, refr_idx) # refl_prob is the probability of reflection (refraction if has_refr is true)
+        if ti.random() < refl_prob: # if the incident direction is reflected
+            u = reflect(indir, normal) # reflect the incident direction
+        else: # if the incident direction is refracted
+            u = refr_dir # refract the incident direction
+    return u.normalized(), pdf # return the sampled direction and the pdf of the sampled direction
 
 
-stratify_res = 5
-inv_stratify = 1.0 / 5.0
+stratify_res = 5  # stratify resolution
+inv_stratify = 1.0 / 5.0  # 1.0 / stratify_res
 
 
 @ti.kernel
 def render():
-    for u, v in color_buffer:
-        aspect_ratio = res[0] / res[1]
-        pos = camera_pos
-        cur_iter = count_var[0]
-        str_x, str_y = (cur_iter / stratify_res), (cur_iter % stratify_res)
-        ray_dir = ti.Vector([
-            (2 * fov * (u + (str_x + ti.random()) * inv_stratify) / res[1] -
+    for u, v in color_buffer:  # pixel
+        aspect_ratio = res[0] / res[1]  # width / height
+        pos = camera_pos  # camera position
+        ray_dir = ti.Vector([  # ray direction
+            (2 * fov * u / res[1] -  # x
              fov * aspect_ratio - 1e-5),
-            (2 * fov * (v + (str_y + ti.random()) * inv_stratify) / res[1] -
+            (2 * fov * v / res[1] -  # y
              fov - 1e-5),
-            -1.0,
+            -1.0,  # z
         ])
-        ray_dir = ray_dir.normalized()
+        ray_dir = ray_dir.normalized()  # normalize ray direction
 
-        acc_color = ti.Vector([0.0, 0.0, 0.0])
-        throughput = ti.Vector([1.0, 1.0, 1.0])
+        acc_color = ti.Vector([0.0, 0.0, 0.0])  # accumulated color
+        throughput = ti.Vector([1.0, 1.0, 1.0])  # throughput
 
-        depth = 0
-        while depth < max_ray_depth:
-            closest, hit_normal, hit_color, mat = intersect_scene(pos, ray_dir)
-            if mat == mat_none:
+        depth = 0  # current depth
+        while depth < max_ray_depth:  # max depth
+            closest, hit_normal, hit_color, mat = intersect_scene(pos, ray_dir)  # intersect scene
+            if mat == mat_none:  # no intersection
                 break
 
-            hit_pos = pos + closest * ray_dir
+            hit_pos = pos + closest * ray_dir  # hit position
             hit_light = (mat == mat_light)
-            if hit_light:
-                acc_color += throughput * light_color
-                break
-            elif mat == mat_lambertian:
-                acc_color += throughput * sample_direct_light(
-                    hit_pos, hit_normal, hit_color)
+            if hit_light:  # we hit a light
+                acc_color += throughput * light_color  # accumulate color
+                break  # break
+            elif mat == mat_lambertian:  # we hit a lambertian material
+                acc_color += throughput * sample_direct_light(  # accumulate color
+                    hit_pos, hit_normal, hit_color)  # sample direct light
 
-            depth += 1
-            ray_dir, pdf = sample_ray_dir(ray_dir, hit_normal, hit_pos, mat)
-            pos = hit_pos + 1e-4 * ray_dir
-            if mat == mat_lambertian:
-                throughput *= lambertian_brdf * hit_color * dot_or_zero(
-                    hit_normal, ray_dir) / pdf
-            else:
-                throughput *= hit_color
-        color_buffer[u, v] += acc_color
-    count_var[0] = (count_var[0] + 1) % (stratify_res * stratify_res)
+            depth += 1  # increase depth
+            ray_dir, pdf = sample_ray_dir(ray_dir, hit_normal, hit_pos, mat)  # sample ray direction
+            pos = hit_pos + 1e-4 * ray_dir  # update position
+            if mat == mat_lambertian:  # lambertian material
+                throughput *= lambertian_brdf * hit_color * dot_or_zero(  # update throughput
+                    hit_normal, ray_dir) / pdf  # update throughput
+            else:  # specular or glass material
+                throughput *= hit_color  # update throughput
+        color_buffer[u, v] += acc_color  # accumulate color in buffer
 
 
 @ti.kernel
-def tonemap(accumulated: ti.f32):
-    for i, j in tonemapped_buffer:
+def tonemap(accumulated: ti.f32):  # tonemap color buffer
+    for i, j in tonemapped_buffer:  # pixel
         tonemapped_buffer[i, j] = ti.sqrt(color_buffer[i, j] / accumulated *
-                                          100.0)
+                                          100.0)  # tonemap color buffer using gamma correction
 
 
 def main():
