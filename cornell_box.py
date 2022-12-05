@@ -13,8 +13,8 @@ mat_light = 4
 
 
 class Mat(tk.Tk):
-    mat_sphere = mat_lambertian
-    mat_box = mat_lambertian
+    mat_sphere = mat_glass
+    mat_box = mat_specular
     mat_top = mat_lambertian
     mat_bottom = mat_lambertian
     mat_left = mat_lambertian
@@ -50,38 +50,38 @@ class Mat(tk.Tk):
         self.fr1 = tk.LabelFrame(self, text="Sphere")
         self.lb1 = tk.Listbox(self.fr1, exportselection=False)
         self.fill_lb(self.lb1)
-        self.lb1.select_set(mat_lambertian)
+        self.lb1.select_set(Mat.mat_sphere)
 
         self.fr2 = tk.LabelFrame(self, text="Box")
 
         self.lb2 = tk.Listbox(self.fr2, exportselection=False)
         self.fill_lb(self.lb2)
-        self.lb2.select_set(mat_lambertian)
+        self.lb2.select_set(Mat.mat_box)
 
         self.fr3 = tk.LabelFrame(self, text="Top")
         self.lb3 = tk.Listbox(self.fr3, exportselection=False)
         self.fill_lb(self.lb3)
-        self.lb3.select_set(mat_lambertian)
+        self.lb3.select_set(Mat.mat_top)
 
         self.fr4 = tk.LabelFrame(self, text="Bottom")
         self.lb4 = tk.Listbox(self.fr4, exportselection=False)
         self.fill_lb(self.lb4)
-        self.lb4.select_set(mat_lambertian)
+        self.lb4.select_set(Mat.mat_bottom)
 
         self.fr5 = tk.LabelFrame(self, text="Left")
         self.lb5 = tk.Listbox(self.fr5, exportselection=False)
         self.fill_lb(self.lb5)
-        self.lb5.select_set(mat_lambertian)
+        self.lb5.select_set(Mat.mat_left)
 
         self.fr6 = tk.LabelFrame(self, text="Right")
         self.lb6 = tk.Listbox(self.fr6, exportselection=False)
         self.fill_lb(self.lb6)
-        self.lb6.select_set(mat_lambertian)
+        self.lb6.select_set(Mat.mat_right)
 
         self.fr7 = tk.LabelFrame(self, text="Far")
         self.lb7 = tk.Listbox(self.fr7, exportselection=False)
         self.fill_lb(self.lb7)
-        self.lb7.select_set(mat_lambertian)
+        self.lb7.select_set(Mat.mat_far)
 
         self.btn = tk.Button(self, text="OK", command=self.ok)
 
