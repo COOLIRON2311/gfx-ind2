@@ -43,7 +43,7 @@ class Mat(tk.Tk):
         Mat.mat_bottom = self.lb4.curselection()[0]
         Mat.mat_left = self.lb5.curselection()[0]
         Mat.mat_right = self.lb6.curselection()[0]
-        Mat.mat_far = self.lb6.curselection()[0]
+        Mat.mat_far = self.lb7.curselection()[0]
         self.destroy()
 
     def create_widgets(self):
