@@ -388,7 +388,7 @@ def dot_or_zero(n, l):
 
 
 @ti.func
-def mis_power_heuristic(pf, pg):  # power heuristic for MIS weight calculation
+def mis_power_heuristic(pf, pg):  # power heuristic for Multiple Importance Sampling
     # Assume 1 sample for each distribution
     f = pf**2  # pdf of sample from f
     g = pg**2  # pdf of sample from g
@@ -404,7 +404,7 @@ def compute_area_light_pdf(pos, ray_dir):
         if l_cos > eps:  # light is visible
             tmp = ray_dir * t  # hit_pos
             dist_sqr = tmp.dot(tmp)  # distance to light
-            pdf = dist_sqr / (light_area * l_cos)
+            pdf = dist_sqr / (light_area * l_cos) # probability density function
     return pdf
 
 
