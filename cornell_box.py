@@ -13,8 +13,8 @@ mat_light = 4
 
 
 class Mat(tk.Tk):
-    mat_sphere = mat_glass
-    mat_box = mat_specular
+    mat_sphere = mat_specular
+    mat_box = mat_glass
     mat_top = mat_lambertian
     mat_bottom = mat_lambertian
     mat_left = mat_lambertian
