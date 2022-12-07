@@ -13,8 +13,8 @@ mat_light = 4
 
 
 class Mat(tk.Tk):
-    mat_sphere = mat_specular
-    mat_box = mat_glass
+    mat_sphere = mat_glass
+    mat_box = mat_specular
     mat_top = mat_lambertian
     mat_bottom = mat_lambertian
     mat_left = mat_lambertian
@@ -277,7 +277,7 @@ def intersect_aabb(box_min, box_max, o, d): # AABB = axis-aligned bounding box, 
     if near_t > far_t: # if the near intersection is behind the far intersection
         intersect = 0 # no intersection
     if intersect: # if there is an intersection
-        for i in ti.static(range(2)): # for each axis except the near face
+        for i in ti.static(range(3)): # for each axis except the near face
             if near_face == i: # if the near intersection is on the i-th face
                 near_norm[i] = -1 + near_is_max * 2 # set the normal of the near intersection
     return intersect, near_t, far_t, near_norm # return the intersection, the near intersection, the far intersection, and the normal of the near intersection
