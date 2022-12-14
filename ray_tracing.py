@@ -9,8 +9,8 @@ class Material(Enum):
     Mirror = 2
 
 class App(tk.Tk):
-    W: int = 100
-    H: int = 100
+    W: int = 300
+    H: int = 300
     
     camera = np.array([0.0,1.0,3.0])
     light = np.array([0.0,0.2,0.0])
@@ -31,7 +31,10 @@ class App(tk.Tk):
     
     box_min = np.array([-0.7,2.0,-3.0])
     box_max = np.array([-0.4, 1.0, -1.0])
-            
+    
+    box2_min = np.array([0.4,2.0,0.5])
+    box2_max = np.array([0.7, 1.0, 1.0])
+                
     def __init__(self):
         super().__init__()
         self.title("Ray-tracing")
@@ -47,6 +50,7 @@ class App(tk.Tk):
         self.draw()
         pg.display.update()
         self.mainloop()
+
     
     def intersect_wall(self,ray,cur_pos, wall_pos, wall_norm):
         dist = self.default_dist
@@ -103,8 +107,10 @@ class App(tk.Tk):
         if intersect:
             for i in range(3):
                 if near_face == i:
-                    near_norm[i] = -1
+                    near_norm[i] = -1*(1 if i != 1 else -1)
         return intersect, tmin, tmax, near_norm  
+
+    eps = 1e-10
     
     def check_intersection(self, ray, cur_pos, to_light=False):
         cur_dist = self.default_dist
@@ -112,47 +118,53 @@ class App(tk.Tk):
         res_color = pg.Color([0.0,0.0,0.0])
         res_mat = Material.Common
         
-        dist = self.intersect_wall(ray,cur_pos,np.array([-2,0,0]),np.array([1,0,0]))
+        dist = self.intersect_wall(ray,cur_pos,np.array([-2,0,0]),np.array([1,0,0])) #l
         if 0<dist<cur_dist and not to_light:
             cur_dist = dist
             int_norm = np.array([1.0,0.0,0.0])
             res_color = self.left_wall_color
             res_mat = self.left_wall_material
             
-        dist = self.intersect_wall(ray,cur_pos,np.array([2,0,0]),np.array([-1,0,0]))
+        dist = self.intersect_wall(ray,cur_pos,np.array([2,0,0]),np.array([-1,0,0])) #r
         if 0<dist<cur_dist and not to_light:
             cur_dist = dist
             int_norm = np.array([-1.0,0.0,0.0])
             res_color = self.right_wall_color
             res_mat = self.right_wall_material
 
-        dist = self.intersect_wall(ray,cur_pos,np.array([0,2,0]),np.array([0,1,0]))
-        if 0<dist<cur_dist and not to_light:
-            cur_dist = dist
-            int_norm = np.array([0.0,1.0,0.0])
-            res_color = self.floor_wall_color
-            res_mat = self.floor_wall_material
-
-        dist = self.intersect_wall(ray,cur_pos,np.array([0,0,0]),np.array([0,-1,0]))
+        dist = self.intersect_wall(ray,cur_pos,np.array([0,2,0]),np.array([0,-1,0])) #f
         if 0<dist<cur_dist and not to_light:
             cur_dist = dist
             int_norm = np.array([0.0,-1.0,0.0])
+            res_color = self.floor_wall_color
+            res_mat = self.floor_wall_material
+
+        dist = self.intersect_wall(ray,cur_pos,np.array([0,0,0]),np.array([0,1,0])) #t
+        if 0<dist<cur_dist and not to_light:
+            cur_dist = dist
+            int_norm = np.array([0.0,1.0,0.0])
             res_color = self.top_wall_color
             res_mat = self.top_wall_material
 
-        dist = self.intersect_wall(ray,cur_pos,np.array([0,0,-4]),np.array([0,0,1]))
+        dist = self.intersect_wall(ray,cur_pos,np.array([0,0,-4]),np.array([0,0,1])) #back
         if 0<dist<cur_dist and not to_light:
             cur_dist = dist
             int_norm = np.array([0.0,0.0,1.0])
             res_color = self.top_wall_color
             res_mat = self.top_wall_material 
         
-        intr, tmin, tmax, norm = self.intersect_box(self.box_min, self.box_max, cur_pos, ray)       
-        if intr and 0<tmin<cur_dist:
+        intr, tmin, _, norm = self.intersect_box(self.box_min, self.box_max, cur_pos, ray)       
+        if intr and -self.eps<tmin<cur_dist:
             cur_dist = tmin
             int_norm = norm
-            res_color = self.left_wall_color            
-                               
+            res_color = self.right_wall_color            
+            
+        intr, tmin, _, norm = self.intersect_box(self.box2_min, self.box2_max, cur_pos, ray)       
+        if intr and -self.eps<tmin<cur_dist:
+            cur_dist = tmin
+            int_norm = norm
+            res_color = self.left_wall_color        
+                                    
         return cur_dist, int_norm, res_color, res_mat
     
     def gen_random_ray_from(self,normal):
@@ -183,7 +195,7 @@ class App(tk.Tk):
         return d - 2.0 * np.dot(d,n) * n
                                                                      
     def trace(self,ray,cur_pos,itert,color,acc):
-        if itert > 6:
+        if itert > 5:
             return color
         
         int_dist, norm, int_color, int_mat = self.check_intersection(ray,cur_pos)
@@ -191,25 +203,29 @@ class App(tk.Tk):
             return color
         t = np.array(int_color)[0:3]
         tn = t/np.linalg.norm(t)         
-        acc = acc * np.array([0.4,0.4,0.4])
+        acc = acc 
         new_pos = cur_pos + int_dist * ray
         new_ray = ray
         
+        vecToLight = self.light - new_pos
+        vecToLight = vecToLight / np.linalg.norm(vecToLight)
+        visability = max(abs(np.dot(vecToLight,norm)),0.0)
+        l_dist, _, _, _ = self.check_intersection(vecToLight, new_pos, True)
+        
         if int_mat == Material.Common:       
-            vecToLight = self.light - new_pos
-            vecToLight = vecToLight / np.linalg.norm(vecToLight)
-            visability = max(abs(np.dot(vecToLight,norm)),0.0)
-            l_dist, _, _, _ = self.check_intersection(vecToLight, new_pos, True)
             if l_dist == self.default_dist:
-                color += np.array(int_color if iter != 1 else self.light_color)[0:3]*visability*acc
-            else: 
+                color += np.array(self.light_color if iter==0 else int_color)[0:3]*visability*acc
+            elif int_dist > 0: 
                 color += t * (visability /(int_dist*int_dist))*acc
             new_ray = self.gen_random_ray_from(norm)
+            # return color
         elif int_mat == Material.Mirror:
+            if l_dist == self.default_dist:
+                color += np.array(self.light_color if iter==0 else int_color)[0:3]*visability*acc * np.array([0.3,0.3,0.3])           
             new_ray = self.reflect(ray,norm)
             
                
-        return self.trace(new_ray,new_pos,itert+1,color,acc)
+        return self.trace(new_ray,new_pos,itert+1,color,acc* np.array([0.1,0.1,0.1]))
         
            
     def draw(self):
@@ -224,19 +240,19 @@ class App(tk.Tk):
                     2*fov*j/self.H - fov,
                     -1.0
                 ])
-                
+                if i == 113 and j == 155:
+                    print('d')
                 start_dir = start_dir / np.linalg.norm(start_dir)
                 res = self.trace(start_dir,self.camera,0,np.array([0.0,0.0,0.0]),np.array([1.0,1.0,1.0]))
                 # if i+j % 10 == 0:
                 #     res = np.sqrt(res/10 * 100)
                 rcol = pg.Color(min(int(res[0]),255),min(255,int(res[1])),min(255,int(res[2])),255)
                 self.canvas.set_at((i,j),rcol)
-                # pg.display.update()
+                pg.display.update()
                 print(i,j,sep=' ')        
 
 
         
 if __name__ == "__main__":
-    random.seed(2)
     app = App()
     app.run()
