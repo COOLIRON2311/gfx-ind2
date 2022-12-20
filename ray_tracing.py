@@ -440,17 +440,18 @@ class App(tk.Tk):
         floor_material = Material(Color.gray(0.1), Color.gray(0.5), walls_specular_color, walls_shineness)
         floor = Plane(np.array([0.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), floor_material)
 
-        right_wall_material = Material(Color.blue(0.1), Color.blue(0.7), walls_specular_color, walls_shineness)
+        right_wall_material = Material(Color.red(0.1), Color.red(0.7), walls_specular_color, walls_shineness)
         right_wall = Plane(np.array([5.0, 0.0, 0.0]), np.array([-1.0, 0.0, 0.0]), right_wall_material)
 
-        left_wall_material = Material(Color.red(0.1), Color.red(0.7), walls_specular_color, walls_shineness)
+        left_wall_material = Material(Color.blue(0.1), Color.blue(0.7), walls_specular_color, walls_shineness)
         left_wall = Plane(np.array([-5.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), left_wall_material)
 
-        back_wall_material = Material(Color.green(0.1), Color.green(0.5), walls_specular_color, walls_shineness, 0.8)
+        back_wall_material = Material(Color.green(0.1), Color.green(0.5), walls_specular_color, walls_shineness)
         back_wall = Plane(np.array([0.0, 0.0, 10.0]), np.array([0.0, 0.0, -1.0]), back_wall_material)
         roof = Plane(np.array([0.0, 10.0, 0.0]), np.array([0.0, -1.0, 0.0]), floor_material)
 
-        front_wall = Plane(np.array([0.0, 0.0, -11.0]), np.array([0.0, 0.0, 1.0]), floor_material)
+        front_wall_material = Material(Color.purple(0.1), Color.purple(0.5), walls_specular_color, walls_shineness)
+        front_wall = Plane(np.array([0.0, 0.0, -11.0]), np.array([0.0, 0.0, 1.0]), front_wall_material)
 
         self.scene.add_shape(floor)
         self.scene.add_shape(left_wall)
@@ -459,16 +460,18 @@ class App(tk.Tk):
         self.scene.add_shape(front_wall)
         self.scene.add_shape(roof)
 
-        box_material = Material(Color.turquoise(0.1), Color.turquoise(0.9), Color.gray(0.0), 0.0, 0.0)
-        box = Cube(np.array([-2.0, 2.0, 6.0]), 3.0, 4.0, 3.0, box_material)
-        sphere_material = Material(Color.yellow(0.1), Color.yellow(0.7), Color.gray(1.0))
-        sphere = Sphere(np.array([1.0, 1.0, 3.0]), 1.0, sphere_material)
-        reflecting_material = Material(Color.purple(0.1), Color.purple(0.7), Color.gray(0.0), 0.0, 0.6)
-        reflecting_sphere = Sphere(np.array([2.5, 2.0, 6.0]), 2.0, reflecting_material)
+        cube_1_material = Material(Color.turquoise(0.1), Color.turquoise(0.9), Color.gray(0.0), 0.0, 0.6)
+        cube_1 = Cube(np.array([-2.0, 2.0, 6.0]), 3.0, 4.0, 3.0, cube_1_material)
+
+        sphere_1_material = Material(Color.yellow(0.1), Color.yellow(0.7), Color.gray(1.0))
+        sphere_1 = Sphere(np.array([-1.0, 1.0, 0.5]), 1.0, sphere_1_material)
+
+        sphere_2_material = Material(Color.purple(0.1), Color.purple(0.7), Color.gray(0.0), 0.0, 0.6)
+        sphere_2 = Sphere(np.array([2.5, 2.0, 6.0]), 2.0, sphere_2_material)
     
-        self.scene.add_shape(box)
-        self.scene.add_shape(sphere)
-        self.scene.add_shape(reflecting_sphere)
+        self.scene.add_shape(cube_1)
+        self.scene.add_shape(sphere_1)
+        self.scene.add_shape(sphere_2)
 
         light_material = Material(Color(1, 1, 1), Color(1, 1, 1), Color(1, 1, 1), 100.0)
         light = PointLight(np.array([0.0, 9.0, 6.0]), light_material)
