@@ -8,15 +8,6 @@ EPS = 1e-4
 RAY_MIN_DISTANCE = 0.0001
 RAY_MAX_DISTANCE = 1.0e30
 
-# цвета
-WHITE = [255,255,255]
-RED = [255,0,0]
-GREEN = [0,255,0]
-BLUE = [0,0,255]
-YELLOW = [255,255,0]
-PURPLE = [255,0,255]
-CYAN = [0,255,255]
-
 # нормализация вектора
 def vect_normalize(vector: np.ndarray):
     return vector / np.linalg.norm(vector)
@@ -33,13 +24,6 @@ class Color():
     def from_array(array):
         r, g, b = array[0], array[1], array[2]
         return Color(r, g, b)
-
-    def gray(w):
-        return Color(w, w, w)
-
-    # r, g, b from 0 to 255
-    def unnormalized(r, g, b):
-        return Color(r / 255, g / 255, b / 255)
 
     def __add__(self, other):
         if not isinstance(other, Color):
@@ -68,8 +52,11 @@ class Color():
     def purple(p=1.0):
         return Color(p, 0.0, p)
 
-    def turquoise(t=1.0):
-        return Color(0.0, t, t)
+    def cyan(c=1.0):
+        return Color(0.0, c, c)
+
+    def white(w=1.0):
+        return Color(w, w, w)
 
 # класс материала
 class Material:
@@ -200,7 +187,7 @@ class Cube(Shape):
             tzmin, tzmax = tzmax, tzmin 
     
         if ((tmin > tzmax) or (tzmin > tmax)):
-            return None 
+            return None
     
         if (tzmin > tmin):
             tmin = tzmin
@@ -435,15 +422,15 @@ class App(tk.Tk):
 
         walls_shineness = 0.0
 
-        walls_specular_color = Color.gray(0.0)
+        walls_specular_color = Color.white(0.0)
 
-        floor_material = Material(Color.gray(0.1), Color.gray(0.5), walls_specular_color, walls_shineness)
+        floor_material = Material(Color.white(0.1), Color.white(0.5), walls_specular_color, walls_shineness)
         floor = Plane(np.array([0.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), floor_material)
 
-        right_wall_material = Material(Color.red(0.1), Color.red(0.7), walls_specular_color, walls_shineness)
+        right_wall_material = Material(Color.red(0.1), Color.red(0.5), walls_specular_color, walls_shineness)
         right_wall = Plane(np.array([5.0, 0.0, 0.0]), np.array([-1.0, 0.0, 0.0]), right_wall_material)
 
-        left_wall_material = Material(Color.blue(0.1), Color.blue(0.7), walls_specular_color, walls_shineness)
+        left_wall_material = Material(Color.blue(0.1), Color.blue(0.5), walls_specular_color, walls_shineness)
         left_wall = Plane(np.array([-5.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), left_wall_material)
 
         back_wall_material = Material(Color.green(0.1), Color.green(0.5), walls_specular_color, walls_shineness)
@@ -460,13 +447,13 @@ class App(tk.Tk):
         self.scene.add_shape(front_wall)
         self.scene.add_shape(roof)
 
-        cube_1_material = Material(Color.turquoise(0.1), Color.turquoise(0.9), Color.gray(0.0), 0.0, 0.6)
+        cube_1_material = Material(Color.yellow(0.1), Color.yellow(0.3), Color.white(0.0), 0.0, 0.6)
         cube_1 = Cube(np.array([-2.0, 2.0, 6.0]), 3.0, 4.0, 3.0, cube_1_material)
 
-        sphere_1_material = Material(Color.yellow(0.1), Color.yellow(0.7), Color.gray(1.0))
+        sphere_1_material = Material(Color.cyan(0.1), Color.cyan(0.7), Color.white(1.0))
         sphere_1 = Sphere(np.array([-1.0, 1.0, 0.5]), 1.0, sphere_1_material)
 
-        sphere_2_material = Material(Color.purple(0.1), Color.purple(0.7), Color.gray(0.0), 0.0, 0.6)
+        sphere_2_material = Material(Color.purple(0.1), Color.purple(0.7), Color.white(0.0), 0.0, 0.6)
         sphere_2 = Sphere(np.array([2.5, 2.0, 6.0]), 2.0, sphere_2_material)
     
         self.scene.add_shape(cube_1)
