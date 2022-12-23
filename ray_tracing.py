@@ -160,11 +160,11 @@ class Cube(Shape):
     def intersection(self, ray: Ray) -> Intersection:
         local_ray = self.translated_ray(ray)
         with np.errstate(divide='ignore'):
-            tmin = (self.left_bottom_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
-            tmax = (self.right_up_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
+            txmin = (self.left_bottom_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
+            txmax = (self.right_up_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
 
-        if tmin > tmax:
-            tmin, tmax = tmax, tmin
+        if txmin > txmax:
+            txmin, txmax = txmax, txmin
         with np.errstate(divide='ignore'):
             tymin = (self.left_bottom_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
             tymax = (self.right_up_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
@@ -172,14 +172,15 @@ class Cube(Shape):
         if tymin > tymax:
             tymin, tymax = tymax, tymin
 
-        if ((tmin > tymax) or (tymin > tmax)): 
+        if ((txmin > tymax) or (tymin > txmax)): 
             return None
 
-        if (tymin > tmin): 
-            tmin = tymin
+        if (tymin > txmin): 
+            txmin = tymin
     
-        if (tymax < tmax):
-            tmax = tymax
+        if (tymax < txmax):
+            txmax = tymax
+
         with np.errstate(divide='ignore'):
             tzmin = (self.left_bottom_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
             tzmax = (self.right_up_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
@@ -187,22 +188,22 @@ class Cube(Shape):
         if (tzmin > tzmax):
             tzmin, tzmax = tzmax, tzmin 
     
-        if ((tmin > tzmax) or (tzmin > tmax)):
+        if ((txmin > tzmax) or (tzmin > txmax)):
             return None
     
-        if (tzmin > tmin):
-            tmin = tzmin
+        if (tzmin > txmin):
+            txmin = tzmin
     
-        if (tzmax < tmax): 
-            tmax = tzmax
+        if (tzmax < txmax): 
+            txmax = tzmax
 
-        if tmin >= tmax:
+        if txmin >= txmax:
             return None
 
-        if tmin > RAY_MIN_DISTANCE:
-            return Intersection(ray, self, tmin)
-        if tmax > RAY_MIN_DISTANCE:
-            return Intersection(ray, self, tmax)
+        if txmin > RAY_MIN_DISTANCE:
+            return Intersection(ray, self, txmin)
+        if txmax > RAY_MIN_DISTANCE:
+            return Intersection(ray, self, txmax)
         
         return None
 
@@ -210,9 +211,6 @@ class Cube(Shape):
         translated_ray = Ray.copy(ray)
         translated_ray.origin = translated_ray.origin - self.center
         return translated_ray
-
-    def step(self, edge: np.ndarray, vec: np.ndarray):
-        return (vec >= edge) * 1.0
 
     def normal_at_point(self, point: np.ndarray):
         translated_point = point - self.center
@@ -224,9 +222,6 @@ class Cube(Shape):
         normal = normal_dec * translated_point
         normal = vect_normalize(normal)
         return normal
-
-    def check_cached(self, point: np.ndarray):
-        return np.min(np.abs(self.cached_point - point) < EPS)
 
 # класс сферы
 class Sphere(Shape):
@@ -300,7 +295,7 @@ class Camera:
 
     def make_ray(self, x, y):
         direction = self.forward + (x * self.w * self.right + y * self.h * self.up)
-        direction = direction / np.linalg.norm(direction)
+        direction = vect_normalize(direction)
         return Ray(self.position, direction)
 
 
@@ -397,12 +392,6 @@ class Scene:
         reflected_ray_origin = intersection.position() + 1e-5 * normal
         reflected_ray_direction = ray.direction - 2 * np.dot(ray.direction, normal) * normal
         return Ray(reflected_ray_origin, reflected_ray_direction)
-
-    def does_intesect(self, intersection: Intersection):
-        for shape in self.shapes:
-            if shape.intersect(intersection):
-                return True
-        return False
 
 
 class App(tk.Tk):
