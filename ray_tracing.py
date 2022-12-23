@@ -159,14 +159,15 @@ class Cube(Shape):
     
     def intersection(self, ray: Ray) -> Intersection:
         local_ray = self.translated_ray(ray)
-        tmin = (self.left_bottom_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
-        tmax = (self.right_up_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
+        with np.errstate(divide='ignore'):
+            tmin = (self.left_bottom_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
+            tmax = (self.right_up_corner[0] - local_ray.origin[0]) / local_ray.direction[0]
 
         if tmin > tmax:
             tmin, tmax = tmax, tmin
-        
-        tymin = (self.left_bottom_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
-        tymax = (self.right_up_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
+        with np.errstate(divide='ignore'):
+            tymin = (self.left_bottom_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
+            tymax = (self.right_up_corner[1] - local_ray.origin[1]) / local_ray.direction[1]
 
         if tymin > tymax:
             tymin, tymax = tymax, tymin
@@ -179,9 +180,9 @@ class Cube(Shape):
     
         if (tymax < tmax):
             tmax = tymax
-
-        tzmin = (self.left_bottom_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
-        tzmax = (self.right_up_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
+        with np.errstate(divide='ignore'):
+            tzmin = (self.left_bottom_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
+            tzmax = (self.right_up_corner[2] - local_ray.origin[2]) / local_ray.direction[2]
 
         if (tzmin > tzmax):
             tzmin, tzmax = tzmax, tzmin 
@@ -338,6 +339,30 @@ class Scene:
         reflected_ray = self.reflected(ray, nearest_intersection)
         return illumination + reflection * self.sum_illumination(reflected_ray, depth + 1)
 
+    def calculate_illumination(self, ray: Ray, intersection: Intersection):
+        direction_to_light = vect_normalize(self.light_source.position - intersection.position())
+        direction_to_camera = vect_normalize(-ray.direction)
+        
+        normal = intersection.normal()
+        material = intersection.material()
+        
+        # ambient
+        ambient = (material.ambient_color * self.light_source.ambient_color).data
+        
+        if not self.check_light(intersection):
+            return ambient
+        
+        # diffuse
+        diffuse = (material.diffuse_color * self.light_source.diffuse_color).data 
+        diffuse *= np.dot(direction_to_light, normal)
+        # specular
+        h = vect_normalize(direction_to_light + direction_to_camera)
+        specular = (material.specular_color * self.light_source.specular_color).data
+        specular *= np.dot(normal, h) ** (material.shininess / 4.0)
+
+        illumination = ambient + diffuse + specular
+        return illumination
+
     def nearest_intersection(self, ray: Ray):
         intersection = Intersection(ray)
         for shape in self.shapes:
@@ -366,30 +391,6 @@ class Scene:
         direction = self.light_source.position - origin
         distance_to_light = np.linalg.norm(direction)
         return Ray(origin, direction, distance_to_light)
-
-    def calculate_illumination(self, ray: Ray, intersection: Intersection):
-        direction_to_light = vect_normalize(self.light_source.position - intersection.position())
-        direction_to_camera = vect_normalize(-ray.direction)
-        
-        normal = intersection.normal()
-        material = intersection.material()
-        
-        # ambient
-        ambient = (material.ambient_color * self.light_source.ambient_color).data
-        
-        if not self.check_light(intersection):
-            return ambient
-        
-        # diffuse
-        diffuse = (material.diffuse_color * self.light_source.diffuse_color).data 
-        diffuse *= np.dot(direction_to_light, normal)
-        # specular
-        h = vect_normalize(direction_to_light + direction_to_camera)
-        specular = (material.specular_color * self.light_source.specular_color).data
-        specular *= np.dot(normal, h) ** (material.shininess / 4.0)
-
-        illumination = ambient + diffuse + specular
-        return illumination
 
     def reflected(self, ray: Ray, intersection: Intersection):
         normal = intersection.normal()
@@ -424,8 +425,13 @@ class App(tk.Tk):
 
         walls_specular_color = Color.white(0.0)
 
-        floor_material = Material(Color.white(0.1), Color.white(0.5), walls_specular_color, walls_shineness)
-        floor = Plane(np.array([0.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), floor_material)
+        walls_material = Material(Color.white(0.1), Color.white(0.5), walls_specular_color, walls_shineness)
+
+        floor = Plane(np.array([0.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), walls_material)
+
+        roof = Plane(np.array([0.0, 10.0, 0.0]), np.array([0.0, -1.0, 0.0]), walls_material)
+
+        back_wall = Plane(np.array([0.0, 0.0, 10.0]), np.array([0.0, 0.0, -1.0]), walls_material)
 
         right_wall_material = Material(Color.red(0.1), Color.red(0.5), walls_specular_color, walls_shineness)
         right_wall = Plane(np.array([5.0, 0.0, 0.0]), np.array([-1.0, 0.0, 0.0]), right_wall_material)
@@ -433,11 +439,7 @@ class App(tk.Tk):
         left_wall_material = Material(Color.blue(0.1), Color.blue(0.5), walls_specular_color, walls_shineness)
         left_wall = Plane(np.array([-5.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), left_wall_material)
 
-        back_wall_material = Material(Color.green(0.1), Color.green(0.5), walls_specular_color, walls_shineness)
-        back_wall = Plane(np.array([0.0, 0.0, 10.0]), np.array([0.0, 0.0, -1.0]), back_wall_material)
-        roof = Plane(np.array([0.0, 10.0, 0.0]), np.array([0.0, -1.0, 0.0]), floor_material)
-
-        front_wall_material = Material(Color.purple(0.1), Color.purple(0.5), walls_specular_color, walls_shineness)
+        front_wall_material = Material(Color.green(0.1), Color.green(0.5), walls_specular_color, walls_shineness)
         front_wall = Plane(np.array([0.0, 0.0, -11.0]), np.array([0.0, 0.0, 1.0]), front_wall_material)
 
         self.scene.add_shape(floor)
@@ -447,7 +449,7 @@ class App(tk.Tk):
         self.scene.add_shape(front_wall)
         self.scene.add_shape(roof)
 
-        cube_1_material = Material(Color.yellow(0.1), Color.yellow(0.3), Color.white(0.0), 0.0, 0.6)
+        cube_1_material = Material(Color.yellow(0.1), Color.yellow(0.7), Color.white(0.0), 0.0)
         cube_1 = Cube(np.array([-2.0, 2.0, 6.0]), 3.0, 4.0, 3.0, cube_1_material)
 
         sphere_1_material = Material(Color.cyan(0.1), Color.cyan(0.7), Color.white(1.0))
