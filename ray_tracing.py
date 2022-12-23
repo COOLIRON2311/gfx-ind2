@@ -376,7 +376,11 @@ class Scene:
         return intersection == None or not intersection.intersected()
 
     def check_light(self, intersection):
-        ray = self.ray_to_light(intersection)
+        pos = intersection.position()
+        origin = pos + 1e-5 * intersection.normal()
+        direction = self.light_source.position - origin
+        distance_to_light = np.linalg.norm(direction)
+        ray = Ray(origin, direction, distance_to_light)
         nearest_intersection = self.nearest_intersection(ray)
         return self.no_intersection(nearest_intersection) 
 
